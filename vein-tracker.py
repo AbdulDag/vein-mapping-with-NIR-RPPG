@@ -1,31 +1,21 @@
 import cv2 #OpenCV for video capture and display
-import mediapipe as mp # For hand tracking 
-import os 
-from mediapipe.tasks import python # Import python API for MediaPipe tasks
-from mediapipe.tasks.python import vision # Vision tasks 
+import os
 
 
-#setup mediapipe hand tracking model
-model_path = '/absolute/path/to/gesture_recognizer.task'
 
 
-BaseOptions = mp.tasks.BaseOptions
-HandLandmarker = mp.tasks.vision.HandLandmarker
-HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
-HandLandmarkerResult = mp.tasks.vision.HandLandmarkerResult
-VisionRunningMode = mp.tasks.vision.RunningMode
 
-# Create a hand landmarker instance with the live stream mode:
-def print_result(result: HandLandmarkerResult, output_image: mp.Image, timestamp_ms: int):
-    print('hand landmarker result: {}'.format(result))
 
-options = HandLandmarkerOptions(
-    base_options=BaseOptions(model_asset_path='/path/to/model.task'),
-    running_mode=VisionRunningMode.LIVE_STREAM,
-    result_callback=print_result)
-with HandLandmarker.create_from_options(options) as landmarker:
-  # The landmarker is initialized. Use it here.
 
+dataset_path = r"C:\Users\dagab\Desktop\vein-mapper\Finger Vein Database\002\left"  # Path to the dataset directory
+
+try:
+    file_list = os.listdir(dataset_path)
+    images = [f for f in file_list if f.endswith(('.bmp', '.png', '.jpg'))]
+    print(f"Found {len(images)} images in the dataset.")
+    print("First image name:", images[0])
+except FileNotFoundError:
+    print("Error: The folder path is wrong. Check the path in 'dataset_path'")
 
 #open cv stuff - Initializ webcam capture 
 cap = cv2.VideoCapture(0) 
@@ -36,22 +26,24 @@ Frame_height = int(cap.get(4)) # Height of the frame
 
 # Main video processing loop 
 while True: 
-    ret, frame = cap.read()
-    if not ret:
+    ret, frame = cap.read() # Capturing frame by frame from webcam
+    if not ret: # checking if the fram was successfully captureed
         print("Failed to grab frame")
-        break
-    cv2.imshow("Webcam", frame)
+        break # Exit loop if frame capture fails 
+    cv2.imshow("Webcam", frame) # Displays the current frame on a window 
+
+
+
+
+# image processing and display logic here bruh 
 
 
 
 
 
-
-
-
-
+    # Check if 'q' key was pressed to quit program
     if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+        break # Exit while loop, ending video cpature 
 cap.release()
 cv2.destroyAllWindows()    # Convert the frame to grayscale
 cv2.destroyAllWindows()
