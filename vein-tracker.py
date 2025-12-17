@@ -31,14 +31,27 @@ for image_file in images:
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) # Convert the image to greyscale
     
     # -- Enhance image contrast --
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)) # Creating a clahen (Contrast limited adaptive histogram equalization) object 
     enhanced = clahe.apply(gray)
 
     #now we add adaptive thresholding
     #we make the veins pure white and then use gaussian blur to smooth the image
-    veins = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 5)
+
+    #change block size and c value respectively to adjust vein visibility. block size is basically for the noise and if vein broken or invisible lower c value. if too much noise increase block size
+    veins = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 3)
     
-    cv2.imshow("vein image of ahmed sial", veins)
+    # add masking cuz its detecting outside the finger area too
+    #tweak second parameter if it cust off too mcuh of finger or includes too much background
+    _, finger_mask = cv2.threshold(gray, 91, 255, cv2.THRESH_BINARY)
+
+    # This keeps the 'veins' ONLY where 'finger_mask' is White.
+    clean_veins = cv2.bitwise_and(veins, veins, mask=finger_mask)
+
+    # This removes small white dots (noise)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3,3))
+    clean_veins = cv2.morphologyEx(clean_veins, cv2.MORPH_OPEN, kernel)
+
+    cv2.imshow("vein image of ahmed sial", clean_veins)
     cv2.imshow("raw image of ahmed sial", gray)
     cv2.imshow("enhanced image of ahmed sial", enhanced)
 
