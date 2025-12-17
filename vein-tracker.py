@@ -10,50 +10,50 @@ import numpy as np
 dataset_path = r"C:\Users\dagab\Desktop\vein-mapper\Finger Vein Database\002\left"  # Path to the dataset directory
 
 try:
-    file_list = os.listdir(dataset_path) # Getting a list of diles in dataset directo
-    images = [f for f in file_list if f.endswith(('.bmp', '.png', '.jpg'))] # Image files and only keeps files with vaild image extentsions
-    print(f"Found {len(images)} images in the dataset.") # Display total inages found 
-    print("First image name:", images[0]) # Display name of first letter smaple 
-except FileNotFoundError: # Handles case where folder path not exists
+    file_list = os.listdir(dataset_path) # Getting a list of files in dataset directory
+    images = [f for f in file_list if f.endswith(('.bmp', '.png', '.jpg'))] # filters Image files and only keeps files with vaild image extentsions
+    print(f"Found {len(images)} images in the dataset.") # Displays total images found 
+    print("First image name:", images[0]) # Display name of first letter sample   
+except FileNotFoundError: # Handles case where folder path deos not exists
     print("Error: The folder path is wrong. Check the path in 'dataset_path'")
 
-# -- Processing each image in dataset -- 
-# Loop through each image filename in filterd images list 
+# -- Processing Each Image in Dataset -- 
+# Loops through each image filename in filterd images list 
 for image_file in images: 
-    full_path = os.path.join(dataset_path, image_file) # Construct comeplte file path by joining directory path and filename
+    full_path = os.path.join(dataset_path, image_file) # Construct complete file path by joining directory path and filename
 
     frame = cv2.imread(full_path) # Reads image file from disk into memory as numpy array
-    if frame is None: 
+    if frame is None: # Checking if image failed to load
         print(f"Error loading image: {full_path}")
         continue # Skips to next image in the loop 
-    height, width = frame.shape[:2]
+    height, width = frame.shape[:2] # Gettins the dimensions of the image (height and width)
     frame = frame[60:height-60, :]
-    # Checking if image failed to load
+    
     
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) # Convert the image to greyscale
     
     # -- Enhance image contrast --
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)) # Creating a clahen (Contrast limited adaptive histogram equalization) object 
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8)) # Creating a clahe (Contrast Limited Adaptive Histogram Equalization) object 
     enhanced = clahe.apply(gray)
 
-    #now we add adaptive thresholding
-    #we make the veins pure white and then use gaussian blur to smooth the image
+    # Now we add adaptive thresholding
+    # We make the veins pure white and then use gaussian blur to smooth the image
 
-    #change block size and c value respectively to adjust vein visibility. block size is basically for the noise and if vein broken or invisible lower c value. if too much noise increase block size
+    # Change block size and c value respectively to adjust vein visibility. block size is basically for the noise and if vein broken or invisible lower c value. if too much noise increase block size
     veins = cv2.adaptiveThreshold(enhanced, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 51, 5)
 
 
 
-    # add masking cuz its detecting outside the finger area too
-    #tweak second parameter if it cust off too mcuh of finger or includes too much background
+    # Add masking cuz its detecting outside the finger area too
+    # Tweak second parameter if it cuts off too mcuh of finger or includes too much background
     _, binary_mask = cv2.threshold(gray, 30, 255, cv2.THRESH_BINARY)
 
-    #find all shapes in the image
+    # Find all shapes in the image
     contours, _ = cv2.findContours(binary_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     mask = np.zeros_like(gray)
     # Checking if countor were found
     if contours:
-        largest_contour = max(contours, key=cv2.contourArea) # finds largest contour and sorts by their area
+        largest_contour = max(contours, key=cv2.contourArea) # Finds largest contour and sorts by their area
         cv2.drawContours(mask, [largest_contour], -1, 255, thickness=cv2.FILLED) # Draws largest contour on mask as a filled white shape
         mask = cv2.erode(mask, np.ones((5,5), np.uint8), iterations=3) # Removes noisy egde articats 
     # This keeps the 'veins' ONLY where 'finger_mask' is White.
@@ -66,11 +66,12 @@ for image_file in images:
     # ... Now start the SKELETONIZATION loop ...
     skeleton = np.zeros(clean_veins.shape, np.uint8)
     
-    # 2. Get a structural element (a cross shape works best for lines)
+    # Get a structural element (a cross shape works best for lines)
     element = cv2.getStructuringElement(cv2.MORPH_CROSS, (3,3))
     
-    # 3. Loop until no white pixels are left in the temp image
+    # Loop until no white pixels are left in the temp image
     temp_img = clean_veins.copy()
+    #skeleton loop
     while True:
         # Erode (shrink) the white lines
         eroded = cv2.erode(temp_img, element)
@@ -90,8 +91,73 @@ for image_file in images:
         # Stop if the image is completely black
         if cv2.countNonZero(temp_img) == 0:
             break
+    # Feature extraction part now using a cv technique called shi-tomasi corner detection
+   
+    # Now draw red dots but we cant so convert first since its skelly is just black/white
+    # ... after your skeleton loop finishes ...
 
-    # Show the final result
+    # --- FINAL STEP: STRUCTURAL MAPPING ---
+    # Goal: Mark "Intersections" (Splits) and "Endpoints" so the doctor sees the network structure.
+    
+    # 1. Prepare color image
+    # ... after your skeleton loop finishes ...
+
+    # --- FINAL STEP: CLEAN STRUCTURAL MAPPING ---
+    
+    # 1. Prepare color image
+    rgb_skeleton = cv2.cvtColor(skeleton, cv2.COLOR_GRAY2BGR) #Converts greysacle skeleton to BGR color format
+    
+    # 2. Helper lists to store "candidate" points
+    # We collect them first, then filter them
+    bifurcations = [] # Red candidates
+    endpoints = []    # Blue candidates
+    
+    # 3. Analyze the structure (Standard Crossing Number)
+    skeleton_bool = skeleton // 255
+    rows, cols = np.nonzero(skeleton_bool) # Gets coordinates of all white pixels
+    
+    for r, c in zip(rows, cols):
+        if r == 0 or r == skeleton.shape[0]-1 or c == 0 or c == skeleton.shape[1]-1:
+            continue
+            
+        window = skeleton_bool[r-1:r+2, c-1:c+2]
+        neighbors = np.sum(window) - 1
+        
+        if neighbors == 1:
+            endpoints.append((c,r))      # Add to blue list
+        elif neighbors >= 3:
+            bifurcations.append((c,r))   # Add to red list
+
+    # --- THE CLUTTER FILTER ---
+    # Function to remove dots that are too close to each other
+    def filter_points(points, min_dist=15):
+        clean_points = []
+        for p in points:
+            # Check if 'p' is close to any point we already saved
+            is_clutter = False
+            for saved_p in clean_points:
+                dist = np.sqrt((p[0]-saved_p[0])**2 + (p[1]-saved_p[1])**2)
+                if dist < min_dist:
+                    is_clutter = True
+                    break
+            if not is_clutter:
+                clean_points.append(p)
+        return clean_points
+
+    # 4. Filter the lists
+    clean_reds = filter_points(bifurcations, min_dist=20) # Stricter for splits
+    clean_blues = filter_points(endpoints, min_dist=20)
+
+    # 5. Draw ONLY the clean points
+    for pt in clean_reds:
+        cv2.circle(rgb_skeleton, pt, 3, (0, 0, 255), -1) # Red
+        
+    for pt in clean_blues:
+        cv2.circle(rgb_skeleton, pt, 3, (255, 0, 0), -1) # Blue
+
+    cv2.imshow("Vein Network Structure", rgb_skeleton)
+    #
+    # Show the final result with keypoints
     cv2.imshow("Skeleton (Final Map)", skeleton)
     
     # ... then your other imshow lines ...
