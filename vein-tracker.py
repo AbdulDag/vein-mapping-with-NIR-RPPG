@@ -6,31 +6,37 @@ import os
 
 
 
-
+# -- Dataset Setup -- 
 dataset_path = r"C:\Users\dagab\Desktop\vein-mapper\Finger Vein Database\002\left"  # Path to the dataset directory
 
 try:
-    file_list = os.listdir(dataset_path)
-    images = [f for f in file_list if f.endswith(('.bmp', '.png', '.jpg'))]
-    print(f"Found {len(images)} images in the dataset.")
-    print("First image name:", images[0])
-except FileNotFoundError:
+    file_list = os.listdir(dataset_path) # Getting a list of diles in dataset directo
+    images = [f for f in file_list if f.endswith(('.bmp', '.png', '.jpg'))] # Image files and only keeps files with vaild image extentsions
+    print(f"Found {len(images)} images in the dataset.") # Display total inages found 
+    print("First image name:", images[0]) # Display name of first letter smaple 
+except FileNotFoundError: # Handles case where folder path not exists
     print("Error: The folder path is wrong. Check the path in 'dataset_path'")
 
-#open cv stuff - Initializ webcam capture 
-cap = cv2.VideoCapture(0) 
+# -- Processing each image in dataset -- 
+#Loop through each image filename in filterd images list 
+for image_file in images: 
+    full_path = os.path.join(dataset_path, image_file) #Construct comeplte file path by joining directory path and filename
 
-# Getting dimensions of the video frames 
-Frame_width = int(cap.get(3)) # Width of the frame 
-Frame_height = int(cap.get(4)) # Height of the frame
+    frame = cv2.imread(full_path)
 
-# Main video processing loop 
-while True: 
-    ret, frame = cap.read() # Capturing frame by frame from webcam
-    if not ret: # checking if the fram was successfully captureed
-        print("Failed to grab frame")
-        break # Exit loop if frame capture fails 
-    cv2.imshow("Webcam", frame) # Displays the current frame on a window 
+    if frame is None: 
+        print(f"Error loading image: {full_path}")
+        continue
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+    
+    cv2.imshow("raw image of ahmed sial", gray)
+    cv2.imshow("enhanced image of ahmed sial", enhanced)
+
+    
 
 
 
@@ -41,9 +47,11 @@ while True:
 
 
 
+
+
+
     # Check if 'q' key was pressed to quit program
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    key =  cv2.waitKey(0) & 0xFF
+    if key == ord('q'):
         break # Exit while loop, ending video cpature 
-cap.release()
-cv2.destroyAllWindows()    # Convert the frame to grayscale
 cv2.destroyAllWindows()
